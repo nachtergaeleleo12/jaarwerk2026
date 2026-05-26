@@ -46,7 +46,7 @@ const unsigned long LED_UPDATE_INTERVAL = 50;  // Update every 50ms (20Hz) inste
 // speed: -255 to 255 (negative = reverse, positive = forward)
 void setMotor(int motorNum, int speed) {
   int dirPin = (motorNum == 1) ? DIR1 : DIR2;
-  int pwmPin = (motorNum == 1) ? PWM1 : PWM2;
+  int pwmChannel = (motorNum == 1) ? PWM_CHANNEL1 : PWM_CHANNEL2;
   bool invert = (motorNum == 1) ? invertMotor1 : invertMotor2;
 
   // Apply inversion if needed
@@ -64,7 +64,7 @@ void setMotor(int motorNum, int speed) {
 
   // Constrain and set PWM
   speed = constrain(speed, 0, 255);
-  ledcWrite(pwmPin, speed);
+  ledcWrite(pwmChannel, speed);
 }
 
 // Joystick control: x and y range from -100 to 100
@@ -292,7 +292,7 @@ h1 {
 </head>
 
 <body>
-<h1> LEO Control</h1>
+<h1>🚗 ESP32 Remote Control</h1>
 <div class="status">Ready to drive</div>
 
 <div id="joystickContainer">
@@ -308,7 +308,7 @@ h1 {
 </div>
 
 <div id="ledControls">
-  <div class="ledTitle"> LEO LED Control</div>
+  <div class="ledTitle">💡 LED Control</div>
   <div class="ledButtons">
     <button class="ledBtn" onclick="setLedMode('off')">OFF</button>
     <button class="ledBtn active" onclick="setLedMode('speed')">Speed Mode</button>
@@ -450,9 +450,12 @@ void setup() {
   digitalWrite(ENA, HIGH);
   digitalWrite(ENB, HIGH);
 
-  // Setup PWM channels for motor speed control (ESP32-S2 compatible)
-  ledcAttach(PWM1, PWM_FREQ, PWM_RESOLUTION);
-  ledcAttach(PWM2, PWM_FREQ, PWM_RESOLUTION);
+  // Setup PWM channels for motor speed control
+  ledcSetup(PWM_CHANNEL1, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(PWM1, PWM_CHANNEL1);
+
+  ledcSetup(PWM_CHANNEL2, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(PWM2, PWM_CHANNEL2);
 
   // Initialize LED
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
