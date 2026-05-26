@@ -196,6 +196,68 @@ h1 {
   font-size: 1rem;
   margin-bottom: 30px;
   opacity: 0.9;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.battery-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.battery {
+  width: 60px;
+  height: 28px;
+  border: 3px solid rgba(255,255,255,0.8);
+  border-radius: 4px;
+  position: relative;
+  background: rgba(0,0,0,0.3);
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.battery::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 14px;
+  background: rgba(255,255,255,0.8);
+  border-radius: 0 2px 2px 0;
+}
+
+.battery-level {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.5s ease;
+  box-shadow: 0 0 10px rgba(74,222,128,0.5);
+}
+
+.battery-level.low {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 10px rgba(251,191,36,0.5);
+}
+
+.battery-level.critical {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  box-shadow: 0 0 10px rgba(239,68,68,0.5);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.battery-text {
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
 #joystickContainer {
@@ -320,8 +382,15 @@ h1 {
 </head>
 
 <body>
-<h1>🚗 ESP32 Remote Control</h1>
-<div class="status">🔋 Battery: <span id="batteryVoltage">--</span> V</div>
+<h1> Jaarwerk mobiel</h1>
+<div class="status">
+  <div class="battery-container">
+    <div class="battery">
+      <div class="battery-level" id="batteryLevel" style="width: 0%"></div>
+    </div>
+    <span class="battery-text"><span id="batteryVoltage">--</span> V</span>
+  </div>
+</div>
 
 <div id="joystickContainer">
   <div id="joystickBase">
@@ -336,7 +405,7 @@ h1 {
 </div>
 
 <div id="ledControls">
-  <div class="ledTitle">💡 LED Control</div>
+  <div class="ledTitle"> LED Control</div>
   <div class="ledButtons">
     <button class="ledBtn" onclick="setLedMode('off')">OFF</button>
     <button class="ledBtn active" onclick="setLedMode('speed')">Speed Mode</button>
@@ -468,7 +537,26 @@ function updateBattery() {
   fetch("/battery")
     .then(response => response.text())
     .then(voltage => {
+      const voltageVal = parseFloat(voltage);
       document.getElementById('batteryVoltage').textContent = voltage;
+
+      // Calculate battery percentage (4.2V = 100%, 3.4V = 0%)
+      const minVoltage = 3.4;
+      const maxVoltage = 4.2;
+      let percentage = ((voltageVal - minVoltage) / (maxVoltage - minVoltage)) * 100;
+      percentage = Math.max(0, Math.min(100, percentage)); // Clamp between 0-100
+
+      // Update battery level width
+      const batteryLevel = document.getElementById('batteryLevel');
+      batteryLevel.style.width = percentage + '%';
+
+      // Update battery color based on level
+      batteryLevel.classList.remove('low', 'critical');
+      if (percentage <= 20) {
+        batteryLevel.classList.add('critical');
+      } else if (percentage <= 40) {
+        batteryLevel.classList.add('low');
+      }
     });
 }
 
