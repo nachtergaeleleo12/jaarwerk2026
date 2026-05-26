@@ -18,7 +18,7 @@ int DIR2 = 1;
 int PWM2 = 7;
 
 // Motor direction inversion flags (change these if motors spin wrong way)
-bool invertMotor1 = false;  // Set to true to reverse motor 1
+bool invertMotor1 = true;  // Set to true to reverse motor 1
 bool invertMotor2 = false;  // Set to true to reverse motor 2
 
 // PWM settings
@@ -32,6 +32,12 @@ const int PWM_CHANNEL2 = 1;
 #define NUM_LEDS 1
 CRGB leds[NUM_LEDS];
 
+// Battery voltage measurement settings
+#define BATTERY_PIN 10  // ADC pin for battery voltage divider
+const float R_ABOVE = 220000.0;  // 220 kΩ
+const float R_BELOW = 100000.0;  // 100 kΩ
+float batteryVoltage = 0.0;
+
 // LED mode
 enum LedMode { OFF, STATIC, SPEED_BASED, RAINBOW, BREATHING };
 LedMode currentLedMode = SPEED_BASED;
@@ -41,6 +47,10 @@ int currentSpeed = 0;
 // LED timing - non-blocking
 unsigned long lastLedUpdate = 0;
 const unsigned long LED_UPDATE_INTERVAL = 50;  // Update every 50ms (20Hz) instead of every loop
+
+// Battery measurement timing
+unsigned long lastBatteryUpdate = 0;
+const unsigned long BATTERY_UPDATE_INTERVAL = 2000;  // Update every 2 seconds
 
 // Set motor speed and direction
 // speed: -255 to 255 (negative = reverse, positive = forward)
@@ -94,6 +104,24 @@ void stopAuto() {
   setMotor(1, 0);
   setMotor(2, 0);
   currentSpeed = 0;
+}
+
+// Battery voltage measurement function
+void readBatteryVoltage() {
+  int adcValue = analogRead(BATTERY_PIN);
+  // ESP32-S2 ADC: 0-4095 for 0-3.3V (12-bit)
+  float vMeasured = (adcValue / 4095.0) * 3.3;
+  // Calculate actual battery voltage using voltage divider formula
+  batteryVoltage = vMeasured * ((R_ABOVE + R_BELOW) / R_BELOW);
+
+  // Print to serial
+  Serial.print("Battery: ");
+  Serial.print(batteryVoltage, 2);
+  Serial.print("V (ADC: ");
+  Serial.print(adcValue);
+  Serial.print(", Measured: ");
+  Serial.print(vMeasured, 2);
+  Serial.println("V)");
 }
 
 // LED control functions
@@ -293,7 +321,7 @@ h1 {
 
 <body>
 <h1>🚗 ESP32 Remote Control</h1>
-<div class="status">Ready to drive</div>
+<div class="status">🔋 Battery: <span id="batteryVoltage">--</span> V</div>
 
 <div id="joystickContainer">
   <div id="joystickBase">
@@ -434,6 +462,19 @@ function setColor(r, g, b) {
   document.querySelectorAll('.ledBtn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.ledBtn')[4].classList.add('active');
 }
+
+// Update battery voltage periodically
+function updateBattery() {
+  fetch("/battery")
+    .then(response => response.text())
+    .then(voltage => {
+      document.getElementById('batteryVoltage').textContent = voltage;
+    });
+}
+
+// Update battery every 2 seconds
+setInterval(updateBattery, 2000);
+updateBattery();  // Initial update
 </script>
 
 </body>
@@ -449,6 +490,9 @@ void setup() {
 
   digitalWrite(ENA, HIGH);
   digitalWrite(ENB, HIGH);
+
+  // Setup battery ADC pin
+  pinMode(BATTERY_PIN, INPUT);
 
   // Setup PWM channels for motor speed control
   ledcSetup(PWM_CHANNEL1, PWM_FREQ, PWM_RESOLUTION);
@@ -510,6 +554,12 @@ void setup() {
     }
   });
 
+  server.on("/battery", []() {
+    char voltageStr[10];
+    dtostrf(batteryVoltage, 4, 2, voltageStr);
+    server.send(200, "text/plain", voltageStr);
+  });
+
   server.begin();
   Serial.println("Web server started");
 }
@@ -517,10 +567,17 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  // Only update LED at specified interval to reduce latency
   unsigned long currentMillis = millis();
+
+  // Only update LED at specified interval to reduce latency
   if (currentMillis - lastLedUpdate >= LED_UPDATE_INTERVAL) {
     lastLedUpdate = currentMillis;
     updateLED();
+  }
+
+  // Update battery voltage every 2 seconds
+  if (currentMillis - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
+    lastBatteryUpdate = currentMillis;
+    readBatteryVoltage();
   }
 }
